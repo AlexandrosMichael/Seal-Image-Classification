@@ -52,3 +52,7 @@ I have included text files containing the classification reports for every singl
 ## Y_test.csv
 As required, I've created a .csv file for each of the classification tasks, which contains the predictions of my best performing classifiers on the two X_test.csv datasets supplied. These can be found in the data directory.  
 
+## Report
+
+See P2_report.pdf for a complete report, containing installation and usage instructions.
+
