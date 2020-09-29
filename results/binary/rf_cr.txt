@@ -1,0 +1,8 @@
+              precision    recall  f1-score   support
+
+  background       0.94      1.00      0.97     10886
+        seal       0.98      0.54      0.70      1556
+
+    accuracy                           0.94     12442
+   macro avg       0.96      0.77      0.83     12442
+weighted avg       0.94      0.94      0.93     12442

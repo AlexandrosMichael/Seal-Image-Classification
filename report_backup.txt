@@ -1,0 +1,495 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{listings}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{subfig}
+\setlength{\parskip}{1em}
+\usepackage{indentfirst}
+\usepackage{geometry}
+ \geometry{
+ a4paper,
+ total={170mm,257mm},
+ left=20mm,
+ top=20mm,
+ }
+
+
+
+\lstset{
+  basicstyle=\ttfamily,
+  breaklines=true,
+  columns=fullflexible
+}
+
+\title{CS5014 P2}
+\author{160004864}
+\date{5 May 2020}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+The aim of this practical is to give us experience with working with a real-life experimental dataset that has not been analysed before. The dataset consists of features  extracted from aerial images obtained during seasonal surveys of islands in the North Sea, and we are required to build and train a classification model to predict what type of seal pup is contained within these images. In this project, we will be performing two types of classification, namely binary classification and multi-class classification.   
+
+\section{Data Loading}
+The first step to completing the task at hand is to load the data we will be working with. The dataset  is split into two directories, \lstinline{binary} and \lstinline{multi} containing the data for our binary and multi-class classification task, respectively. \par
+
+Each of these  directories contain three files:
+\begin{itemize}
+    \item X\_train.csv: This file  contains a set of comma-separated values where each row represents an image, and the columns represent the  features  extracted from the image.  
+    \item Y\_train.csv: Each row of this file contains the corresponding  class ID for each sample row from \lstinline{X_train.csv}. 
+    \item X\_test.csv: This file contains data in the same format as \lstinline{X_train.csv} and it serves as the test test. This data will be used  to produce the \lstinline{Y_train.csv} file, which will contain the predictions our model makes, as required by the specification. 
+\end{itemize}
+
+The process of loading the data is implemented in the \lstinline{load_data.py} file and we provide two methods, \lstinline{load_binary_data} and \lstinline{load_multi_data} with the first loading the dataset used for binary classification and the latter loading the dataset used for multi-class classification. \par
+
+We specifically use the \lstinline{read_csv} method of the \lstinline{pandas} module\cite{readcsv}\cite{pandas} in order to load the datasets into \lstinline{DataFrame} data structures. These data structures are  particularly useful as they can hold two-dimensional, size-mutable and potentially heterogeneous tabular data. Furthermore, we chose to use this data structure as it provides us with helpful methods for analysing, manipulating and transforming data\cite{dataframe}. \par 
+
+Once the \lstinline{DataFrame} data structures are created, one for each of our \lstinline{.csv} files, we create a dictionary with the keys \lstinline{X_train}, \lstinline{X_test} and \lstinline{y_train} and it is returned by our method, to be used in other parts of the program. 
+
+\section{Data Cleaning}
+In order to determine whether data cleaning is necessary, we first need to understand what our training dataset is made up of. As we mentioned in the previous section, the files \lstinline{X_train.csv} and  \lstinline{X_test.csv} are composed of rows, each of which represent an image and columns that represent the features extracted from the image. As outlined in the specification, each row has 964 columns and they're made up as follows:
+\begin{itemize}
+    \item The first 900 columns correspond to a histogram of oriented gradients (HoG) extracted from the image.
+    \item The next 16 columns are drawn from a normal distribution.
+    \item The last 48 columns correspond three colour histograms extracted from the  image one for each channel (red, green, blue), with 16 bins per channel.  
+\end{itemize}
+
+The first thing we chose to do was to check whether the dataset is well formed and has the correct dimensionality. For this, I used the \lstinline{pandas.DataFrame.info} method. This revealed the following  information:
+
+\begin{itemize}
+    \item For the binary classification dataset:
+        \begin{itemize}
+            \item \lstinline{X_train}: Contains 62209 entries with 964 columns each, containing values of type \lstinline{float64}.
+            \item \lstinline{y_train}: Contains 62209 entries with each entry either being \lstinline{background} or \lstinline{seal}.
+            \item \lstinline{X_test}: Contains 20334 entries  with 964 columns each, containing values of type \lstinline{float64}.
+        \end{itemize}
+    \item For the multi-class classification dataset:
+        \begin{itemize}
+            \item \lstinline{X_train}: Contains 62209 entries with 964 columns each, containing values of type \lstinline{float64}.
+            \item \lstinline{y_train}:  Contains 62209 entries with each entry either being one of the following \lstinline{background}, \lstinline{whitecoat}, \lstinline{juvenile}, \lstinline{moulted pup} and \lstinline{dead pup}.
+            \item \lstinline{X_test}:  Contains 20334 entries  with 964 columns each, containing values of type \lstinline{float64}.    
+        \end{itemize}
+
+\end{itemize}
+
+There are several observations that we can use to conclude that the datasets are well formed. The first observation is that the entries of our \lstinline{X_train} datasets match the entries of their respective \lstinline{y_train} datasets. Secondly the \lstinline{X_train} datasets have the correct  number of columns, matching the number of extracted features for each image, and they also only contain values of type \lstinline{float64} which means that there are no \lstinline{null} values present or values of some other type that would make an entry invalid. \par 
+
+With that being said, there doesn't seem to be any relationship between the values drawn from a normal distribution and the image an entry represents. For this reason, I decided to remove these 16 columns from our datasets. As a result, the resulting \lstinline{X_train} and \lstinline{X_train} datasets will now be made up of 948 columns instead of the initial 964. \par 
+
+\noindent \textbf{Note:} It seems quite peculiar that the \lstinline{X_train} and \lstinline{X_test} datasets for both classification tasks contain the same number of entries (62209 and 20334  respectively). To check whether these datasets are the same for both tasks or not, we sorted them and we used the \lstinline{DataFrame.equals} method. This returned  \lstinline{False} meaning that the datasets are indeed not the same.
+
+\section{Data Analysis \& Visualisation}
+At this point we will set aside the testing sets and we will focus on the training sets only. We will not perform any analysis or data visualisation on the testing sets as that would constitute data leakage. Data leakage occurs when information outside the training set affects decision making with regards to our classification model and thus invalidating the ability of said model to generalise\cite{dataleakage}. \par 
+
+In order to get a better understanding of the training data, I plotted a \lstinline{countplot} which is essentially shows the count of each of the classification labels in our datasets\cite{countplot}.
+
+\begin{figure}[H]
+
+  \centering
+  \subfloat[Binary Classification Dataset]{\includegraphics[width=0.6\textwidth]{binary_target_count_perc.png}}
+  \hfill
+  \subfloat[Multi-Class Classification Dataset]{\includegraphics[width=0.6\textwidth]{multi_target_count_perc.png}}
+  
+\caption{Countplots of the classification labels from our datasets.}
+\label{fig:countplot}
+\end{figure}
+
+From the above figures it is easy to see that the vast majority of our training samples are images of the \lstinline{background} class, with that being 87.5\% for both of our datasets. In the dataset for our multi-class classification task, the frequency of each type of seal image varies, from 8\% for images of the class \lstinline{whitecoat} to 3.7\% for images of class \lstinline{moulted pup} and 0.4\% for images of class \lstinline{dead pup} and \lstinline{juvenile}. \par 
+
+\section{Validation Set} \label{sec:validationset}
+Since we don't have the \lstinline{y_test} dataset, we cannot use the \lstinline{X_test} in order to evaluate the performance of our classifiers. For this reason, I have created an additional set by splitting the training dataset into two parts, the set of data that will be used for training and the set of data that can be used for evaluation which we will refer to as the validation set. This set was obtained by using the \lstinline{sklearn.model_selection.train_test_split}\cite{traintestsplit}, setting the \lstinline{test_size} parameter as 0.2, meaning that the validation set we obtain will be 20\% of the training data.
+
+
+\section{Dataset Imbalance} \label{sec:undersampled}
+By looking at Figure \ref{fig:countplot}, we can see that our datasets are severely imbalanced, a fact that may cause come problems down the line, such as a poor performance on predicting the minority classes on each of the tasks which, in our case, are the classes we are most interested in identifying. One remedy of imbalanced datasets is resampling our dataset so that it is more balanced by either oversampling, which is adding copies of the under-represented classes or by undersampling, which is deleting instances of the over-represented class\cite{resampling}. Given the fact that the size of our dataset is large, I chose to carry out undersampling. \par 
+
+In the binary dataset, I have performed random undersampling of the background class by using the \lstinline{imblearn.under_sampling.RandomUnderSampler} class of the \lstinline{imbalanced-learn} library\cite{randomundersampler}. The resulting dataset is one that consists of 12444 samples, 6222 for each of the two classes. For the purposes of the dataset used for multi-class classification, we performed random undersampling for the majority classes, that are the \lstinline{background}, \lstinline{whitecoat} and \lstinline{moulted pup} classes. The resulting dataset is one that consists of 990 samples, with 198 samples for each of the 5 classes.
+
+\begin{figure}[H]
+
+  \centering
+  \subfloat[Binary Classification Undersampled Dataset]{\includegraphics[width=0.6\textwidth]{binary_undersampled.png}}
+  \hfill
+  \subfloat[Multi-Class Classification Undersampled Dataset]{\includegraphics[width=0.6\textwidth]{multi_undersampled.png}}
+\caption{Countplots of the classification labels from our undersampled datasets.}
+\label{fig:countplot_undersampled}
+\end{figure}
+
+
+
+
+
+\noindent \textbf{Note:} I have not performed undersampling on the testing set or the validation set, since we except  the distribution of classes in a potential deployment scenario to be  very similar to the one found in our original dataset. As a result if we were to perform undersampling on those sets we would not get evaluation metrics that would represent the classifier's performance in a real-life setting.
+
+\section{Preparing Inputs \& Choosing Features}
+The first step I take is to use \lstinline{sklearn.StandardScaler}\cite{standardscaler} in order to standardise the features by removing the mean and scaling to unit variance, that is, the distribution of our input features have a mean value of 0 and a standard deviation equal to 1. This is important as many machine learning estimators expect features to be standardised, such as algorithms that use gradient descent as their optimisation technique and other distance based algorithms are highly sensitive to the range of features\cite{whyscale}. \par 
+
+Following that, I use the Principal Component Analysis (PCA) technique in order to reduce the dimensionality of the data. Essentially, this procedure converts a set of related  variables into a set  of unrelated ones by using an orthogonal transformation\cite{pca}. The motivation behind this choice is the mitigation of the problems that come with the `curse' of high-dimensionality such as the problem of overfitting which reduces a model's ability to generalise\cite{curse}. To do this, we used the \lstinline{sklearn.decomposition.PCA} class\cite{sklearnpca}, with attributes \lstinline{svd_solver=`full'} and \lstinline{n_components=0.99} so that the number of components selected is such that their explained variance is greater than 99\%. This technique reduces the dimensionality of the input from 948 down to 473 in the original dataset. However when the dataset is undersampled, PCA reduces the number of components to 489 in the binary classification dataset and 383 in the multi-class classification dataset.
+
+
+\section{Cross Validation}
+During the model training process, I've incorporated the cross-validation resampling procedure\cite{crossvalidation}, by using the \lstinline{sklearn.model_selection.KFold} class\cite{kfold}. What this procedure does it it takes the training data and it is split into k folds (in our case $k=5$). Then, for each fold the following steps are carried out:
+\begin{enumerate}
+    \item Take one fold and use it as the validation set.
+    \item Take the remaining 4 folds and use them as the training set.
+    \item The model is then trained on the training set and its performance is evaluated on the validation set.
+    \item The model's evaluation score is stored and the model is discarded.
+\end{enumerate}
+
+After this process is complete we can use the scores collected to evaluate the validation performance of our model. This is useful as it gives us a rough idea on how well this model would perform on unseen data, a fact that can be used when faced with the decision of choosing between different classifiers.
+
+The evaluation metric used in the cross-validation procedure is the balanced accuracy score\cite{balancedaccuracy} which is essentially the average of the recall for each class. This is used due to the unbalanced nature of our dataset. Had we used a different metric such as accuracy can give us misleading results as we may report a very high accuracy even if the model is only good at identifying the majority class in our dataset. Furthermore, this choice can be further justified by the fact that the classes we are most interested in are the minority classes, which are the classes representing seals. Our model would be no good if it was unable to detect these in a potential deployment scenario. 
+
+
+
+
+\section{Classification Models}
+In this section I will be discussing the classifiers I've chosen for this practical.
+
+\noindent \textbf{Note:} The hyperparameters used for the classifiers can be found in the appendix of this document.
+
+
+\subsection{K-Nearest Neighbours}
+The k-Nearest neighbours (KNN) algorithm is a rather simple yet widely used machine learning algorithm in which the dataset is stored and when a prediction is required, the k nearest samples of the training dataset are located and a prediction is made based on the most common outcome\cite{knn}. For the purposes of this practical, I used the \lstinline{sklearn.neighbors.KNeighborsClassifier} implementation\cite{sklearnknn}. \par
+
+
+
+
+\subsection{Random Forest}
+A random forest classifier is an ensemble which consists of a number of decision trees which are trained on sub-samples of the dataset, and it then uses averaging to improve its performance and to reduce the problem of overfitting. I have decided to use this classifier since decision trees have been reported to perform well on imbalanced datasets due to the fact by learning through following a hierarchy of essentially if/else statements, they have to address all of the classes present in the dataset. \cite{randomforestimbalanced}. For the purposes of this practical is have used the \lstinline{sklearn.ensemble.RandomForestClassifier} implementation\cite{sklearnrf}.
+
+
+
+\subsection{SVM}
+Support vector machines (SVM) models are widely used and they're some of the most popular machine learning models. Support vector machines essentially use a hyperplane to separate the dataset into the different classes. While there can be many ways to use a hyperplane to separate a dataset, it  is chosen in a way such that it maximises the margin between a subset of data points, the support vectors, which are the data points that are the most difficult to classify\cite{svm}. For the purposes of this practical we have used the \lstinline{sklearn.svm.LinearSVC} implementation, which is an SVM that uses a linear kernel. It is worth noting that when performing multi-class classification, this SVM will train one-vs-rest classifiers, instead of training one-vs-one classifiers for each pair of classes, as some other SVM implementations do. 
+
+
+\section{Evaluation \& Model Comparison}
+For this practical we were required to train classifiers to perform two classification tasks - a binary and a multi-class one. In this section I will be outlining, comparing and discussing the performance of the models on both of the above tasks. As mentioned earlier in section \ref{sec:validationset}, we have set aside a sub-set of the data set to be used as a validation set, and it is by using this set that we evaluate the performance of our models.
+
+\noindent \textbf{Note:} The values reported for each metric are the macro-averages across the different classes. We do so due to the fact that the dataset is imbalanced towards the class that we are the least interested in. As a result, weighted averages are not very meaningful, since they will be inflated and unrepresentative of how the classifiers perform on the minority classes. Since macro-averages are imbalance insensitive, we chose to report these in this section. The full classification reports which contain the values for the class weighted metrics as well, can be found in the \lstinline{results} directory of the submission. Furthermore, I have included the confusion matrix for each of the experiments in the appendix of this document which show how the well the classifiers perform on each class.
+
+\subsection{Binary Classification} \label{sec:binaryclassification}
+At first we will compare the performance of the different classifiers at the binary classification task, when trained on the original, non under-sampled dataset.
+
+ \begin{center}
+ \begin{table}[H]
+ \centering
+ \begin{tabular}{| c | c | c | c | c |} 
+ \hline
+ \textbf{Classifier} & \textbf{Accuracy}  & \textbf{Precision} &\textbf{Recall} & \textbf{f1-score} \\
+ \hline
+  KNN & 0.94 & 0.96 & 0.78 & 0.84 \\
+  \hline
+  RF & 0.94 & 0.96 & 0.77 & 0.83 \\
+  \hline
+  SVM & 0.97 & 0.95 & 0.9 & 0.92 \\
+  \hline
+
+\end{tabular}
+\caption{\label{tab:binaryoriginal}Results for the binary classification task, when trained on the original dataset.}
+
+\end{table}
+\end{center}
+
+The following are the results when the classifiers were trained on the undersampled dataset, which was obtained as described in section \ref{sec:undersampled}: 
+
+ \begin{center}
+ \begin{table}[H]
+ \centering
+ \begin{tabular}{| c | c | c | c | c |} 
+ \hline
+ \textbf{Classifier} & \textbf{Accuracy} & \textbf{Precision} &\textbf{Recall} & \textbf{f1-score} \\
+ \hline
+  KNN & 0.95 & 0.94 & 0.83 & 0.88 \\
+  \hline
+  RF & 0.86 & 0.73 & 0.89 & 0.77 \\
+  \hline
+  SVM & 0.94 & 0.83 & 0.93 & 0.87 \\
+  \hline
+
+\end{tabular}
+\caption{\label{tab:binaryundersampled}Results for the binary classification task, when trained on the undersampled dataset.}
+
+\end{table}
+\end{center}
+
+
+\subsection{Multi-Class Classification} \label{sec:multiclassification}
+Now, we will comparing the performance of the different classifiers at the multi-class classification task, when trained on the original, non under-sampled dataset.
+
+ \begin{center}
+ \begin{table}[H]
+ \centering
+ \begin{tabular}{| c | c | c | c | c |} 
+ \hline
+ \textbf{Classifier} & \textbf{Accuracy} & \textbf{Precision} &\textbf{Recall} & \textbf{f1-score} \\
+ \hline
+  KNN & 0.92 & 0.6 & 0.35 & 0.4 \\
+  \hline
+  RF & 0.91 & 0.34 & 0.29 & 0.31 \\
+  \hline
+  SVM & 0.94 & 0.66 & 0.47 & 0.48 \\
+  \hline
+
+\end{tabular}
+\caption{\label{tab:multioriginal}Results for the multi-class classification task, when trained on the original dataset.}
+
+\end{table}
+\end{center}
+
+The following are the results when the classifiers were trained on the undersampled dataset:
+
+ \begin{center}
+ \begin{table}[H]
+ \centering
+ \begin{tabular}{| c | c | c | c | c |} 
+ \hline
+ \textbf{Classifier} & \textbf{Accuracy} & \textbf{Precision} &\textbf{Recall} & \textbf{f1-score} \\
+ \hline
+  KNN & 0.87 & 0.45 & 0.43 & 0.38 \\
+  \hline
+  RF & 0.68 & 0.31 & 0.57 & 0.31 \\
+  \hline
+  SVM & 0.56 & 0.28 & 0.49 & 0.26 \\
+  \hline
+
+\end{tabular}
+\caption{\label{tab:multiundersampled}Results for the multi-class classification task, when trained on the undersampled dataset.}
+
+\end{table}
+\end{center}
+
+
+\section{Critical Discussion}
+
+\subsection{Dataset}
+
+\subsection{Approach}
+
+\subsection{Binary Classification Results}
+In section \ref{sec:binaryclassification} I have outlined the results for the binary classification task. By looking at the tables we can make the following observations:
+
+\begin{itemize}
+    \item When the classifiers were trained on the undersampled dataset, their macro-average precision increased while their precision has decreased. The f1-score increased only for the KNN  whereas it decreased for the RF and the SVM. Accuracy followed the opposite trend, where undersampling increased the accuracy score only for the KNN (although by only 1\%) but it decreased for the RF and the SVM. By looking at the results, we can deduce that if high recall is important, undersampling an imbalanced dataset is an effective way to achieve that. 
+    
+    \item When the classifiers were trained on the original data, the SVM scored the highest accuracy, recall and f1-score while KNN and RF tied for the highest precision score, beating the SVM for just 0.01. From examining this data we can conclude that the SVM is the superior choice for a classifier of the three. 
+    
+    \item When the classifiers were trained on the undersampled data, the KNN achieved the highest accuracy, precision and f1-score, while the SVM achieved the highest recall. We can see that on a smaller dataset, the KNN is generally performing better out of the three classifiers. With that being said, the SVM achieves the highest recall in this case as well. 
+    
+    
+\end{itemize}
+
+
+
+\subsection{Multi-Class Classification Results}
+In section \ref{sec:multiclassification} I have outlined the results for the multi-class classification task. By looking at the tables we can make the following observations:
+
+
+\begin{itemize}
+    \item In this classification task, undersampling the dataset causes the accuracy, precision and f1-score to fall by a significant amount. The poor performance is due to the fact that the smallest classes, `dead pup' and `juvenile', down to which all the other classes are undersampled, make up just 0.4\%  of the dataset, a tiny portion of the original dataset. As a result the entire dataset consist of 198 samples for each class, which given the dimensionality of the input it is very small.
+    
+    \item When the classifiers were trained on the original dataset, the SVM achieved the highest scores in all of the metrics. We can thus come to the conclusion that the SVM is the superior option of the three for performing multi-class classification on an imbalanced dataset. The second best classifier was the KNN while RF achieved the lowest scores out of the three. 
+    
+    \item When the classifiers were trained on the undersampled dataset however, the SVM perform the poorest across all metrics. In fact KNN achieved the highest accuracy, precision, recall and f1-score while RF achieved the highest recall. Once again, we that KNN performs better on the smaller dataset, an observation we made when were analysing the performance of our classifiers on the binary classification task. 
+\end{itemize}
+
+
+\subsection{Overall Results}
+Overall, we can conclude that the SVM shows the most promising results in both of the classification tasks achieving high scores across all metrics in both of our classification tasks. It is if for this reason we will be using it to produce the required predicted output files. \par 
+
+Furthermore, we can conclude that while undersampling a dataset has some merit, as it has improved the recall of our classifiers, it has adversely affected all other metrics, especially in the multi-class classification task and in this case, it may not be an ideal way to deal with the imbalance in our dataset. \par  
+
+\section{Evaluation \& Conclusion}
+Overall I'm very happy with the work I've produced as I've successfully created three different classification models which I've trained using a number of machine learning techniques, completing all of the requirements set out by the specification. I have entered my best performing classifier in the competition server set up for this practical with which I achieved an accuracy score of \textbf{0.9823} and \textbf{0.97472} in the binary and multi-class tasks respectively. \par 
+
+If I had more time I would perform a systematic grid search which unfortunately due to time restrictions and hardware limitations of my personal machine, I was not able to carry out. Furthermore I would have liked to explore additional classifiers such as XGBoost, which has been used to achieve state of the art results in many classification tasks. \par
+
+This practical was very successful in achieving its learning aims as I have gained knowledge and practical experience of how to deal with a real-life and imperfect dataset, a trait shared by most datasets in existence.  
+
+
+\clearpage
+\begin{thebibliography}{}
+
+
+\bibitem{readcsv}
+pandas.read\_csv — pandas 1.0.1 documentation. (2020). Retrieved 3 March 2020, from https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read\_csv.html
+
+\bibitem{pandas}
+pandas - Python Data Analysis Library. (2020). Retrieved 17 April 2020, from https://pandas.pydata.org/
+
+\bibitem{dataframe}
+pandas.DataFrame — pandas 1.0.1 documentation. (2020). Retrieved 3 March 2020, from https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html
+
+\bibitem{specification}
+(2020). Retrieved 17 April 2020, from https://studres.cs.st-andrews.ac.uk/CS5014/Practicals/P2/P2.pdf
+
+\bibitem{info}
+pandas.DataFrame.info — pandas 1.0.1 documentation. (2020). Retrieved 3 March 2020, from https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.info.html
+
+\bibitem{equals}
+pandas.DataFrame.equals — pandas 1.0.3 documentation. (2020). Retrieved 17 April 2020, from https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.equals.html
+
+\bibitem{dataleakage}
+Brownlee, J. (2020). Data Leakage in Machine Learning. Retrieved 17 April 2020, from https://machinelearningmastery.com/data-leakage-machine-learning/
+
+\bibitem{countplot}
+seaborn.countplot — seaborn 0.10.0 documentation. (2020). Retrieved 17 April 2020, from https://seaborn.pydata.org/generated/seaborn.countplot.html
+
+\bibitem{traintestsplit}
+sklearn.model\_selection.train\_test\_split — scikit-learn 0.22.2 documentation. (2020). Retrieved 4 March 2020, from https://scikit-learn.org/stable/modules/generated/sklearn.model\_selection.train\_test\_split.html
+
+\bibitem{resampling}
+Brownlee, J. (2020). 8 Tactics to Combat Imbalanced Classes in Your Machine Learning Dataset. Retrieved 22 April 2020, from https://machinelearningmastery.com/tactics-to-combat-imbalanced-classes-in-your-machine-learning-dataset/
+
+\bibitem{randomundersampler}
+3. Under-sampling — imbalanced-learn 0.5.0 documentation. (2020). Retrieved 23 April 2020, from https://imbalanced-learn.readthedocs.io/en/stable/under\_sampling.html
+
+\bibitem{standardscaler}
+sklearn.preprocessing.StandardScaler — scikit-learn 0.22.2 documentation. (2020). Retrieved 22 April 2020, from https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.StandardScaler.html
+
+\bibitem{whyscale}
+Standardization, F. (2020). Feature Scaling | Standardization Vs Normalization. Retrieved 22 April 2020, from https://www.analyticsvidhya.com/blog/2020/04/feature-scaling-machine-learning-normalization-standardization/
+
+\bibitem{pca}
+ML | Principal Component Analysis(PCA) - GeeksforGeeks. (2020). Retrieved 22 April 2020, from https://www.geeksforgeeks.org/ml-principal-component-analysispca/
+
+\bibitem{curse}
+The Curse of Dimensionality in Classification. (2020). Retrieved 22 April 2020, from https://www.visiondummy.com/2014/04/curse-dimensionality-affect-classification/
+
+\bibitem{sklearnpca}
+sklearn.decomposition.PCA — scikit-learn 0.22.2 documentation. (2020). Retrieved 22 April 2020, from https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html
+
+\bibitem{crossvalidation}
+Brownlee, J. (2020). A Gentle Introduction to k-fold Cross-Validation. Retrieved 4 March 2020, from https://machinelearningmastery.com/k-fold-cross-validation/
+
+\bibitem{kfold}
+sklearn.model\_selection.KFold — scikit-learn 0.22.2 documentation. (2020). Retrieved 4 March 2020, from https://scikit-learn.org/stable/modules/generated/sklearn.model\_selection.KFold.html
+
+\bibitem{balancedaccuracy}
+sklearn.metrics.balanced\_accuracy\_score — scikit-learn 0.22.2 documentation. (2020). Retrieved 4 May 2020, from https://scikit-learn.org/stable/modules/generated/sklearn.metrics.balanced\_accuracy\_score.html
+
+\bibitem{knn}
+Brownlee, J. (2020). Develop k-Nearest Neighbors in Python From Scratch. Retrieved 23 April 2020, from https://machinelearningmastery.com/tutorial-to-implement-k-nearest-neighbors-in-python-from-scratch/
+
+\bibitem{sklearnknn}
+sklearn.neighbors.KNeighborsClassifier — scikit-learn 0.22.2 documentation. (2020). Retrieved 23 April 2020, from https://scikit-learn.org/stable/modules/generated/sklearn.neighbors.KNeighborsClassifier.html
+
+
+\bibitem{randomforestimbalanced}
+Methods for Dealing with Imbalanced Data. (2020). Retrieved 4 May 2020, from https://towardsdatascience.com/methods-for-dealing-with-imbalanced-data-5b761be45a18
+
+\bibitem{sklearnrf}
+3.2.4.3.1. sklearn.ensemble.RandomForestClassifier — scikit-learn 0.22.2 documentation. (2020). Retrieved 4 May 2020, from https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html
+
+\bibitem{svm}
+(2020). Retrieved 4 May 2020, from http://web.mit.edu/6.034/wwwbob/svm-notes-long-08.pdf
+
+\bibitem{sklearnsvm}
+sklearn.svm.LinearSVC — scikit-learn 0.22.2 documentation. (2020). Retrieved 4 May 2020, from https://scikit-learn.org/stable/modules/generated/sklearn.svm.LinearSVC.html
+
+\end{thebibliography}
+\clearpage
+\appendix
+\section{Classifier Hyperparameters}
+
+\subsection{K-Nearest Neighbours}
+\begin{itemize}
+    \item \lstinline{algorithm} : \lstinline{auto}
+    \item \lstinline{leaf_size} : \lstinline{30}
+    \item \lstinline{metric} : \lstinline{minkowski}
+    \item \lstinline{metric_params} : \lstinline{None}
+    \item \lstinline{n_neighbors} : \lstinline{3}
+    \item \lstinline{p} : \lstinline{2}
+    \item \lstinline{weights} : \lstinline{uniform}
+\end{itemize}
+
+\subsection{Random Forest}
+\begin{itemize}
+    \item \lstinline{bootstrap} : \lstinline{True}
+    \item \lstinline{class_weight} : \lstinline{None}
+    \item \lstinline{criterion} : \lstinline{gini}
+    \item \lstinline{max_depth} : \lstinline{None}
+    \item \lstinline{min_impurity_decrease} : \lstinline{0.0}
+    \item \lstinline{min_impurity_split} : \lstinline{None}
+    \item \lstinline{min_samples_leaf} : \lstinline{1}
+    \item \lstinline{min_samples_split} : \lstinline{2}
+    \item \lstinline{min_weight_fraction_leaf} : \lstinline{0.0}
+\end{itemize}
+
+\subsection{SVM}
+\begin{itemize}
+    \item \lstinline{C} : \lstinline{1.0}
+    \item \lstinline{class_weight} : \lstinline{None}
+    \item \lstinline{dual} : \lstinline{False}
+    \item \lstinline{fit_intercept} : \lstinline{True}
+    \item \lstinline{intercept_scaling} : \lstinline{1}
+    \item \lstinline{loss} : \lstinline{squared_hinge}
+    \item \lstinline{max_iter} : \lstinline{1000}
+    \item \lstinline{multi_class} : \lstinline{over}
+    \item \lstinline{penatly} : \lstinline{l2} 
+    \item \lstinline{tol} : \lstinline{0.0001} 
+\end{itemize}
+
+\section{Confusion Matrices}
+
+\subsection{Binary Classification Task}
+
+\begin{figure}[H]
+  \centering
+  \subfloat[KNN]{\includegraphics[width=0.4\textwidth]{binary_knn_cm.png}}
+  \hfill
+  \subfloat[RF]{\includegraphics[width=0.4\textwidth]{binary_rf_cm.png}}
+  
+  \subfloat[SVM]{\includegraphics[width=0.4\textwidth]{binary_svm_cm.png}}
+  
+\caption{Confusion Matrices for the binary classification task, when trained on the original dataset.}
+
+\end{figure}
+
+
+\begin{figure}[H]
+  \centering
+  \subfloat[KNN]{\includegraphics[width=0.4\textwidth]{binary_knn_cm_undersampled.png}}
+  \hfill
+  \subfloat[RF]{\includegraphics[width=0.4\textwidth]{binary_rf_cm_undersampled.png}}
+  
+  \subfloat[SVM]{\includegraphics[width=0.4\textwidth]{binary_svm_cm_undersampled.png}}
+  
+\caption{Confusion Matrices for the binary classification task, when trained on the undersampled dataset.}
+
+\end{figure}
+
+\subsection{Multi-class Classification Task}
+\begin{figure}[H]
+  \centering
+  \subfloat[KNN]{\includegraphics[width=0.4\textwidth]{multi_knn_cm.png}}
+  \hfill
+  \subfloat[RF]{\includegraphics[width=0.4\textwidth]{multi_rf_cm.png}}
+  
+  \subfloat[SVM]{\includegraphics[width=0.4\textwidth]{multi_svm_cm.png}}
+  
+\caption{Confusion Matrices for the multi-class classification task, when trained on the original dataset.}
+
+\end{figure}
+
+
+\begin{figure}[H]
+  \centering
+  \subfloat[KNN]{\includegraphics[width=0.4\textwidth]{multi_knn_cm_undersampled.png}}
+  \hfill
+  \subfloat[RF]{\includegraphics[width=0.4\textwidth]{multi_rf_cm_undersampled.png}}
+  
+  \subfloat[SVM]{\includegraphics[width=0.4\textwidth]{multi_svm_undersampled.png}}
+  
+\caption{Confusion Matrices for the multi-class classification task, when trained on the undersampled dataset.}
+
+\end{figure}
+
+
+
+\end{document}

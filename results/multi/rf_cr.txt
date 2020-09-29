@@ -1,0 +1,11 @@
+              precision    recall  f1-score   support
+
+  background       0.92      1.00      0.96     10887
+    dead pup       0.00      0.00      0.00        55
+    juvenile       0.00      0.00      0.00        50
+ moulted pup       0.00      0.00      0.00       454
+   whitecoat       0.77      0.47      0.58       996
+
+    accuracy                           0.91     12442
+   macro avg       0.34      0.29      0.31     12442
+weighted avg       0.87      0.91      0.88     12442
